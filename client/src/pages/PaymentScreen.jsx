@@ -48,7 +48,8 @@ const PaymentScreen = () => {
         // Why? Because we might want to un-allocate them or change the amount.
         const currentAllocatedBillIds = editPayment?.billsAllocated?.map(a => {
             if (!a.bill) return null; // Handle missing bill ref
-            return typeof a.bill === 'object' ? a.bill._id : a.bill;
+            const raw = typeof a.bill === 'object' ? a.bill._id : a.bill;
+            return raw.toString();
         }).filter(id => id) || []; // Filter out nulls
 
         return fullSupplier.bills.filter(b => b.status !== 'Paid' || currentAllocatedBillIds.includes(b._id));
@@ -66,9 +67,9 @@ const PaymentScreen = () => {
                 const initialAlloc = {};
                 editPayment.billsAllocated.forEach(alloc => {
                     // Handle both populated bill object or just ID
-                    // Fix: typeof null is 'object', so explicitly check alloc.bill exists
                     if (!alloc.bill) return;
-                    const billId = typeof alloc.bill === 'object' ? alloc.bill._id : alloc.bill;
+                    const rawId = typeof alloc.bill === 'object' ? alloc.bill._id : alloc.bill;
+                    const billId = rawId.toString();
                     initialAlloc[billId] = alloc.amount.toString();
                 });
                 setSelectedAllocations(initialAlloc);
@@ -177,12 +178,7 @@ const PaymentScreen = () => {
     if (!supplier) return <div className="container">No supplier selected</div>;
     if (loadingSupplier || !fullSupplier) return <div className="container">Loading...</div>;
 
-    const toggleBill = (id) => {
-        const newAlloc = { ...selectedAllocations };
-        if (newAlloc[id] !== undefined) delete newAlloc[id];
-        else newAlloc[id] = '';
-        setSelectedAllocations(newAlloc);
-    };
+    // toggleBill removed as we use direct input now
 
     const handleManualAmountChange = (id, val) => {
         const newAlloc = { ...selectedAllocations };
@@ -271,57 +267,57 @@ const PaymentScreen = () => {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             {unpaidBills.map(bill => {
                                 const due = bill.amount - (bill.paidAmount || 0);
-                                const isChecked = selectedAllocations[bill._id] !== undefined;
-                                const manualVal = selectedAllocations[bill._id] || '';
+                                const isManual = selectedAllocations[bill._id] !== undefined;
+                                const manualVal = selectedAllocations[bill._id];
 
                                 // Find projection for this bill
                                 const projection = projectedAllocation.find(p => p.billId === bill._id);
+                                const displayedAlloc = isManual ? manualVal : (projection ? projection.amount : '');
 
                                 return (
                                     <div key={bill._id} className="card"
                                         style={{
                                             padding: '0.75rem', margin: 0,
                                             display: 'flex', alignItems: 'center', gap: '1rem',
-                                            border: isChecked ? '1px solid var(--primary)' : '1px solid var(--border-color)',
-                                            backgroundColor: isChecked ? '#eff6ff' : 'white'
+                                            border: isManual ? '1px solid var(--primary)' : '1px solid var(--border-color)',
+                                            backgroundColor: (projection && projection.amount > 0) ? '#f0fdf4' : 'white'
                                         }}
                                     >
-                                        <input
-                                            type="checkbox"
-                                            className="checkbox"
-                                            checked={isChecked}
-                                            onChange={() => toggleBill(bill._id)}
-                                        />
                                         <div style={{ flex: 1 }}>
                                             <strong>{bill.billNumber}</strong>
                                             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{new Date(bill.date).toLocaleDateString()}</div>
                                         </div>
 
-                                        {/* INLINE PROJECTION FEEDBACK */}
-                                        {projection && (
-                                            <div style={{
-                                                background: '#dcfce7', color: '#166534',
-                                                padding: '0.25rem 0.5rem', borderRadius: '4px',
-                                                fontSize: '0.8rem', fontWeight: 'bold',
-                                                whiteSpace: 'nowrap'
-                                            }}>
-                                                Allocated: ${projection.amount.toLocaleString()}
-                                            </div>
-                                        )}
-
-                                        {isChecked && (
-                                            <input
-                                                type="number"
-                                                placeholder={`Max: ${due}`}
-                                                value={manualVal}
-                                                onChange={(e) => handleManualAmountChange(bill._id, e.target.value)}
-                                                onClick={(e) => e.stopPropagation()}
-                                                style={{ width: '100px', padding: '0.25rem', marginRight: '0.5rem' }}
-                                            />
-                                        )}
                                         <div style={{ textAlign: 'right', minWidth: '80px' }}>
                                             <div style={{ fontWeight: 'bold' }}>${due.toLocaleString()}</div>
                                             <div style={{ fontSize: '0.7rem', color: '#666' }}>Due</div>
+                                        </div>
+
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                            <label style={{ fontSize: '0.7rem', color: '#666', marginBottom: '2px' }}>Allocation</label>
+                                            <input
+                                                type="number"
+                                                placeholder="0"
+                                                value={displayedAlloc}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    // If empty, remove manual key (dynamic mode)
+                                                    // OR keep it as 0 if user explicitly typed 0
+                                                    handleManualAmountChange(bill._id, val);
+                                                }}
+                                                className="input-field"
+                                                style={{
+                                                    width: '100px',
+                                                    padding: '0.25rem',
+                                                    border: isManual ? '1px solid var(--primary)' : '1px solid #ccc',
+                                                    textAlign: 'right',
+                                                    fontWeight: (projection && projection.amount > 0) ? 'bold' : 'normal',
+                                                    color: (projection && projection.amount > 0) ? '#166534' : 'black'
+                                                }}
+                                            />
+                                            {projection && projection.status === 'Paid' && (
+                                                <span style={{ fontSize: '0.65rem', color: '#166534', fontWeight: 'bold' }}>Fully Paid</span>
+                                            )}
                                         </div>
                                     </div>
                                 );
