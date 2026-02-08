@@ -12,11 +12,131 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
+// Routes
 const Supplier = require('./models/Supplier');
 const Bill = require('./models/Bill');
 const Payment = require('./models/Payment');
+const DeletedPayment = require('./models/DeletedPayment');
 
-// GET all suppliers with their bills
+// ... (GET suppliers, GET statement, GET payments code remains same) ...
+
+// ... (allocatePayment helper remains same) ...
+
+// ... (POST pay/allocate, PUT payments/:id remain same) ...
+
+// DELETE Payment (Soft Delete)
+app.delete('/api/payments/:id', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const payment = await Payment.findById(id);
+        if (!payment) return res.status(404).json({ message: 'Payment not found' });
+
+        // 1. Revert Allocation on Bills
+        for (const alloc of payment.billsAllocated) {
+            const bill = await Bill.findById(alloc.bill);
+            if (bill) {
+                bill.paidAmount = Math.max(0, (bill.paidAmount || 0) - alloc.amount);
+                bill.status = bill.paidAmount >= bill.amount - 0.01 ? 'Paid' : (bill.paidAmount > 0 ? 'Partially Paid' : 'Credit');
+                await bill.save();
+            }
+        }
+
+        // 2. Archive to DeletedPayment
+        const deletedPayment = new DeletedPayment({
+            originalPaymentId: payment._id,
+            supplier: payment.supplier,
+            amount: payment.amount,
+            date: payment.date,
+            mode: payment.mode,
+            billsAllocated: payment.billsAllocated
+        });
+        await deletedPayment.save();
+
+        // 3. Delete Original
+        await Payment.findByIdAndDelete(id);
+
+        res.json({ message: 'Payment deleted and archived successfully' });
+
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// GET Deleted Payments
+app.get('/api/deleted-payments', async (req, res) => {
+    try {
+        const deleted = await DeletedPayment.find()
+            .populate('supplier')
+            .populate('billsAllocated.bill')
+            .sort({ deletedAt: -1 });
+        res.json(deleted);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// RESTORE Deleted Payment
+app.post('/api/deleted-payments/:id/restore', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const archived = await DeletedPayment.findById(id);
+        if (!archived) return res.status(404).json({ message: 'Archived payment not found' });
+
+        // 1. Validate if we can restore (Check bill balances)
+        for (const alloc of archived.billsAllocated) {
+            const bill = await Bill.findById(alloc.bill);
+            if (!bill) {
+                return res.status(400).json({ message: `Bill ${alloc.bill} no longer exists. Cannot restore.` });
+            }
+
+            const currentDue = bill.amount - (bill.paidAmount || 0);
+            // If the bill has been paid by someone else since deletion, 
+            // currentDue might be less than what we want to restore.
+            // Example: Bill 1000. Paid 500 (Alloc). Deleted -> Due 1000. 
+            // New Payment pays 800 -> Due 200.
+            // Try Restore 500 -> 500 > 200 -> FAIL.
+
+            if (alloc.amount > currentDue + 0.01) { // Tolerance
+                return res.status(400).json({
+                    message: `Cannot restore: Bill ${bill.billNumber} has insufficient balance. Required: ${alloc.amount}, Available: ${currentDue}`
+                });
+            }
+        }
+
+        // 2. If Valid, Re-apply Allocations
+        for (const alloc of archived.billsAllocated) {
+            const bill = await Bill.findById(alloc.bill);
+            bill.paidAmount = (bill.paidAmount || 0) + alloc.amount;
+            bill.status = bill.paidAmount >= bill.amount - 0.01 ? 'Paid' : 'Partially Paid';
+            await bill.save();
+        }
+
+        // 3. Restore Payment Record
+        // We can either keep original ID or make new one. 
+        // Keeping original ID is better for traceability but ID might be reused if not careful (though MongoIDs are unique).
+        // Let's generate a new ID to avoid any conflict if something weird happened, or verify uniqueness.
+        // Actually, just creating new Payment is safer.
+
+        const restoredPayment = new Payment({
+            supplier: archived.supplier,
+            amount: archived.amount,
+            date: archived.date,
+            mode: archived.mode,
+            billsAllocated: archived.billsAllocated
+        });
+        await restoredPayment.save();
+
+        // 4. Remove from Archive (or mark restored? User asked to "recreate". Usually restore implies moving back)
+        await DeletedPayment.findByIdAndDelete(id);
+
+        res.json({ message: 'Payment restored successfully', payment: restoredPayment });
+
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
 app.get('/api/suppliers', async (req, res) => {
     try {
         const suppliers = await Supplier.find().lean();

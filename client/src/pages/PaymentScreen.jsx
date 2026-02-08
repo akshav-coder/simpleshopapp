@@ -257,6 +257,28 @@ const PaymentScreen = () => {
                         </button>
                     </div>
                 </div>
+
+                {/* SUMMARY SECTION */}
+                <div style={{ marginTop: '1rem', display: 'flex', gap: '2rem', paddingTop: '1rem', borderTop: '1px solid #eee' }}>
+                    <div>
+                        <div style={{ fontSize: '0.8rem', color: '#666' }}>Total Bill Amount</div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>
+                            ${fullSupplier.bills?.reduce((acc, b) => acc + b.amount, 0).toLocaleString()}
+                        </div>
+                    </div>
+                    <div>
+                        <div style={{ fontSize: '0.8rem', color: '#666' }}>Total Balance Due</div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#dc2626' }}>
+                            ${fullSupplier.bills?.reduce((acc, b) => acc + (b.amount - (b.paidAmount || 0)), 0).toLocaleString()}
+                        </div>
+                    </div>
+                    <div>
+                        <div style={{ fontSize: '0.8rem', color: '#666' }}>Amount to be Paid</div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#16a34a' }}>
+                            ${Number(amountToPay || 0).toLocaleString()}
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div style={{ display: 'flex', gap: '2rem' }}>
@@ -381,25 +403,26 @@ const PaymentScreen = () => {
                             </div>
                         )}
 
-                        <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
-                            {editPayment && (
-                                <button
-                                    className="btn"
-                                    style={{ flex: 1, backgroundColor: '#ef4444', color: 'white', border: 'none' }}
-                                    disabled={processing}
-                                    onClick={handleDelete}
-                                >
-                                    Delete
-                                </button>
-                            )}
+                        <div style={{ marginTop: '1.5rem' }}>
                             <button
                                 className="btn"
-                                style={{ flex: 2 }}
+                                style={{ width: '100%' }}
                                 disabled={!amountToPay || processing}
                                 onClick={handlePayment}
                             >
                                 {processing ? 'Processing...' : (editPayment ? 'Update Transaction' : 'Record Payment')}
                             </button>
+
+                            {editPayment && (
+                                <button
+                                    className="btn"
+                                    style={{ width: '100%', marginTop: '1rem', backgroundColor: '#fff', color: '#ef4444', border: '1px solid #ef4444' }}
+                                    disabled={processing}
+                                    onClick={handleDelete}
+                                >
+                                    Delete Transaction
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
