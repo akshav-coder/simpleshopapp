@@ -222,21 +222,7 @@ const PaymentScreen = () => {
         }
     };
 
-    const handleDelete = async () => {
-        if (!editPayment) return;
-        if (!window.confirm('Are you sure you want to delete this payment record? This will revert the bill statuses.')) return;
-
-        setProcessing(true);
-        try {
-            await axios.delete(`http://localhost:5001/api/payments/${editPayment._id}`);
-            alert('Payment Deleted Successfully!');
-            navigate('/history');
-        } catch (err) {
-            console.error(err);
-            alert('Delete failed: ' + (err.response?.data?.message || err.message));
-            setProcessing(false);
-        }
-    };
+    // Delete logic moved to History Screen
 
     return (
         <div className="container">
@@ -260,12 +246,6 @@ const PaymentScreen = () => {
 
                 {/* SUMMARY SECTION */}
                 <div style={{ marginTop: '1rem', display: 'flex', gap: '2rem', paddingTop: '1rem', borderTop: '1px solid #eee' }}>
-                    <div>
-                        <div style={{ fontSize: '0.8rem', color: '#666' }}>Total Bill Amount</div>
-                        <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>
-                            ${fullSupplier.bills?.reduce((acc, b) => acc + b.amount, 0).toLocaleString()}
-                        </div>
-                    </div>
                     <div>
                         <div style={{ fontSize: '0.8rem', color: '#666' }}>Total Balance Due</div>
                         <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#dc2626' }}>
@@ -413,16 +393,7 @@ const PaymentScreen = () => {
                                 {processing ? 'Processing...' : (editPayment ? 'Update Transaction' : 'Record Payment')}
                             </button>
 
-                            {editPayment && (
-                                <button
-                                    className="btn"
-                                    style={{ width: '100%', marginTop: '1rem', backgroundColor: '#fff', color: '#ef4444', border: '1px solid #ef4444' }}
-                                    disabled={processing}
-                                    onClick={handleDelete}
-                                >
-                                    Delete Transaction
-                                </button>
-                            )}
+
                         </div>
                     </div>
                 </div>

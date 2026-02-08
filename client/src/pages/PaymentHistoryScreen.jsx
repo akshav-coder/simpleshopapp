@@ -43,6 +43,19 @@ const PaymentHistoryScreen = () => {
         }
     };
 
+    const handleDelete = async (paymentId) => {
+        if (!window.confirm('Are you sure you want to delete this payment record? This will revert the bill statuses.')) return;
+
+        try {
+            await axios.delete(`http://localhost:5001/api/payments/${paymentId}`);
+            alert('Payment Deleted Successfully!');
+            fetchPayments(); // Refresh list
+        } catch (err) {
+            console.error(err);
+            alert('Delete failed: ' + (err.response?.data?.message || err.message));
+        }
+    };
+
     const handleEdit = (payment) => {
         // Navigate to payment screen with edit mode - tricky because PaymentScreen is built for "New Payment".
         // To simplify for this artifact: We pass 'editPayment' in state to PaymentScreen
@@ -101,6 +114,15 @@ const PaymentHistoryScreen = () => {
                                     }}
                                 >
                                     Edit Transaction
+                                </button>
+                                <button
+                                    onClick={() => handleDelete(payment._id)}
+                                    style={{
+                                        background: 'none', border: 'none', color: '#ef4444',
+                                        cursor: 'pointer', fontSize: '0.9rem', textDecoration: 'underline', marginTop: '0.2rem', marginLeft: '1rem'
+                                    }}
+                                >
+                                    Delete
                                 </button>
                             </div>
                         </div>
